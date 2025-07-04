@@ -127,22 +127,136 @@ The security configuration is managed through `security/security-config.json`. T
 ```json
 "external_apis": {
   "enabled": true,
-  "description": "Allow HTTP/HTTPS for AI APIs and OAuth",
+  "description": "Allow specific external APIs and OAuth providers",
   "services": [
-    {"name": "HTTP", "port": 80, "protocol": "tcp"},
-    {"name": "HTTPS", "port": 443, "protocol": "tcp"}
+    {"name": "OpenAI API", "host": "api.openai.com", "port": 443},
+    {"name": "Anthropic API", "host": "api.anthropic.com", "port": 443},
+    {"name": "Google OAuth", "host": "accounts.google.com", "port": 443},
+    {"name": "GitHub API", "host": "api.github.com", "port": 443}
   ]
 }
 ```
-- **Purpose**: Direct access to external services
+- **Purpose**: Host-specific access to external services
+- **Configuration**: Each service requires `name`, `host`, and `port`
 - **Use Cases**:
   - AI provider APIs (OpenAI, Anthropic, Google, etc.)
   - OAuth authentication (Google, GitHub, Discord, etc.)
   - External tools (weather, search, etc.)
-- **Security Impact**: Highest risk category
-- **Recommendation**: Disable if using only proxy-based communication
+- **Security**: High security - only specified hosts allowed
+- **Recommendation**: Add only necessary services to minimize attack surface
+
+##### 7. External DNS
+```json
+"external_dns": {
+  "enabled": true,
+  "description": "Allow external DNS resolution for hostname lookups",
+  "servers": [
+    {"name": "Google Primary DNS", "ip": "8.8.8.8", "port": 53, "protocol": "udp"},
+    {"name": "Google Secondary DNS", "ip": "8.8.4.4", "port": 53, "protocol": "udp"},
+    {"name": "Cloudflare Primary DNS", "ip": "1.1.1.1", "port": 53, "protocol": "udp"},
+    {"name": "Cloudflare Secondary DNS", "ip": "1.0.0.1", "port": 53, "protocol": "udp"}
+  ],
+  "primary_server": "8.8.8.8"
+}
+```
+- **Purpose**: Enable external DNS resolution for hostname-based external APIs
+- **Configuration**: 
+  - `servers`: Array of DNS server configurations
+  - `primary_server`: Primary DNS server IP used for hostname resolution
+- **Use Cases**:
+  - Required when external APIs use hostnames instead of IP addresses
+  - Enables resolution of api.openai.com, accounts.google.com, etc.
+- **Security**: Medium risk - allows specific DNS servers only
+- **Recommendation**: Required if external_apis is enabled with hostname-based services
 
 ## Security Policy Management
+
+### Adding Custom External APIs
+
+To add new external services that LibreChat should be allowed to access:
+
+#### Step 1: Edit security-config.json
+Add your service to the `external_apis.services` array:
+
+```json
+"external_apis": {
+  "enabled": true,
+  "description": "Allow specific external APIs and OAuth providers",
+  "services": [
+    {"name": "OpenAI API", "host": "api.openai.com", "port": 443},
+    {"name": "Anthropic API", "host": "api.anthropic.com", "port": 443},
+    {"name": "Custom Weather API", "host": "api.weather.com", "port": 443},
+    {"name": "Custom Search API", "host": "search.example.com", "port": 80}
+  ]
+}
+```
+
+#### Step 2: Required Fields
+Each service entry must include:
+- **`name`**: Descriptive name for the service (used in logs and tests)
+- **`host`**: Hostname or domain name (e.g., "api.example.com")
+- **`port`**: Port number (typically 443 for HTTPS, 80 for HTTP)
+
+#### Step 3: Apply Changes
+```bash
+# Restart the NetRestrictor container to apply changes
+docker compose -f docker-compose.netrestrictor.yml restart librechat-netrestrictor
+
+# Verify the configuration is applied
+docker logs LibreChat-NetRestrictor | grep "External APIs"
+```
+
+#### Step 4: Test Validation
+```bash
+# Run security tests to verify your new service is allowed
+docker exec LibreChat-NetRestrictor /app/security/netrestrictor_security_test.sh
+```
+
+The test script will automatically read your configuration and test each configured external API.
+
+### Configuring External DNS
+
+When using external APIs with hostnames, you need to configure external DNS servers for hostname resolution.
+
+#### Step 1: Edit External DNS Configuration
+Add or modify the `external_dns` section in `security-config.json`:
+
+```json
+"external_dns": {
+  "enabled": true,
+  "description": "Allow external DNS resolution for hostname lookups",
+  "servers": [
+    {"name": "Google Primary DNS", "ip": "8.8.8.8", "port": 53, "protocol": "udp"},
+    {"name": "Cloudflare Primary DNS", "ip": "1.1.1.1", "port": 53, "protocol": "udp"},
+    {"name": "Custom DNS Server", "ip": "203.0.113.1", "port": 53, "protocol": "udp"}
+  ],
+  "primary_server": "8.8.8.8"
+}
+```
+
+#### Step 2: DNS Server Fields
+Each DNS server entry must include:
+- **`name`**: Descriptive name for the DNS server
+- **`ip`**: IP address of the DNS server
+- **`port`**: Port number (typically 53 for DNS)
+- **`protocol`**: Protocol type ("udp" for standard DNS)
+
+#### Step 3: Primary Server Configuration
+- **`primary_server`**: IP address used for hostname resolution during external API setup
+- Must match one of the IPs in the `servers` array
+- Used by dig and nslookup commands for hostname resolution
+
+#### Step 4: Apply and Test
+```bash
+# Restart the NetRestrictor container
+docker compose -f docker-compose.netrestrictor.yml restart librechat-netrestrictor
+
+# Verify DNS configuration is applied
+docker logs LibreChat-NetRestrictor | grep "External DNS"
+
+# Test hostname resolution
+docker exec LibreChat-NetRestrictor /app/security/netrestrictor_security_test.sh
+```
 
 ### Enabling/Disabling Categories
 
@@ -152,7 +266,15 @@ To modify security policies, edit `security/security-config.json`:
 ```json
 "external_apis": {
   "enabled": false,
-  "description": "Block all HTTP/HTTPS external access"
+  "description": "Block all external API access"
+}
+```
+
+#### Example: Disable External DNS Resolution
+```json
+"external_dns": {
+  "enabled": false,
+  "description": "Block external DNS resolution - only Docker internal DNS allowed"
 }
 ```
 

@@ -5,7 +5,7 @@ FROM ghcr.io/danny-avila/librechat-dev:latest
 USER root
 
 # Install security tools (Alpine packages)
-RUN apk add --no-cache iptables iproute2 curl bash su-exec
+RUN apk add --no-cache iptables iproute2 curl bash su-exec bind-tools
 
 # Create startup script
 COPY security/start-with-security.sh /app/start-with-security.sh

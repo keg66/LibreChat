@@ -52,12 +52,85 @@ test_connection "Meilisearch Internal" "LibreChat-Meilisearch-NetRestrictor" "77
 test_connection "VectorDB Internal" "LibreChat-VectorDB-NetRestrictor" "5432" "ALLOW"
 
 echo ""
+echo "🌐 Testing EXTERNAL API connections (based on security-config.json):"
+echo "--------------------------------------------------------------------"
+
+# Read external API configuration and test each configured service
+if [ -f "/app/security/security-config.json" ]; then
+    # Check if external APIs are enabled
+    external_apis_enabled=$(grep -A 5 '"external_apis"' "/app/security/security-config.json" | grep '"enabled"' | grep -o 'true\|false')
+    
+    if [ "$external_apis_enabled" = "true" ]; then
+        # Create temporary file to store external API services
+        temp_apis="/tmp/external_apis_list"
+        > "$temp_apis"
+        
+        # Parse external APIs from config and save to temp file
+        grep -A 100 '"external_apis"' "/app/security/security-config.json" | grep -A 50 '"services"' | \
+        sed -n '/{/,/}/p' | grep -E '"name"|"host"|"port"' | \
+        while read -r line; do
+            if echo "$line" | grep -q '"name"'; then
+                name=$(echo "$line" | sed 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+            elif echo "$line" | grep -q '"host"'; then
+                host=$(echo "$line" | sed 's/.*"host"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+            elif echo "$line" | grep -q '"port"'; then
+                port=$(echo "$line" | sed 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/')
+                
+                # Save complete service info to temp file
+                if [ -n "$name" ] && [ -n "$host" ] && [ -n "$port" ]; then
+                    echo "$name|$host|$port" >> "$temp_apis"
+                    
+                    # Reset variables
+                    name=""
+                    host=""
+                    port=""
+                fi
+            fi
+        done
+        
+        # Now test each service from the temp file
+        if [ -f "$temp_apis" ] && [ -s "$temp_apis" ]; then
+            while IFS='|' read -r api_name api_host api_port; do
+                # Try to resolve hostname first, then test direct IP if hostname fails
+                if timeout 5 nc -z "$api_host" "$api_port" 2>/dev/null; then
+                    test_connection "External API: $api_name" "$api_host" "$api_port" "ALLOW"
+                else
+                    # If hostname fails, try resolving to IP and test that
+                    resolved_ip=$(dig +short "$api_host" @8.8.8.8 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+                    if [ -n "$resolved_ip" ]; then
+                        echo -n "Testing External API: $api_name ($api_host -> $resolved_ip:$api_port): "
+                        total=$((total + 1))
+                        if timeout 2 nc -z "$resolved_ip" "$api_port" 2>/dev/null; then
+                            echo "✅ CONNECTED (Expected)"
+                            passed=$((passed + 1))
+                        else
+                            echo "❌ BLOCKED (Connection Problem)"
+                            failed=$((failed + 1))
+                            echo "  ⚠️  CONNECTION ISSUE: Cannot reach required service $api_host:$api_port" >&2
+                        fi
+                    else
+                        test_connection "External API: $api_name" "$api_host" "$api_port" "ALLOW"
+                    fi
+                fi
+            done < "$temp_apis"
+        fi
+        
+        # Clean up temp file
+        rm -f "$temp_apis"
+    else
+        echo "External APIs are disabled in configuration - skipping external API tests"
+    fi
+else
+    echo "Security configuration file not found - skipping external API tests"
+fi
+
+echo ""
 echo "🚫 Testing BLOCKED connections (should fail):"
 echo "----------------------------------------------"
 test_connection "External DNS (Google)" "8.8.8.8" "53" "BLOCK"
 test_connection "External DNS (Cloudflare)" "1.1.1.1" "53" "BLOCK"
-test_connection "External HTTP (Google)" "google.com" "80" "BLOCK" 
-test_connection "External HTTPS (Google)" "google.com" "443" "BLOCK"
+test_connection "Unauthorized External HTTP" "example.com" "80" "BLOCK" 
+test_connection "Unauthorized External HTTPS" "example.com" "443" "BLOCK"
 test_connection "Existing Server Direct" "host.docker.internal" "3000" "BLOCK"
 test_connection "Local SSH" "127.0.0.1" "22" "BLOCK"
 test_connection "External SSH" "8.8.8.8" "22" "BLOCK"
@@ -130,9 +203,10 @@ echo "🔒 iptables Status Check:"
 echo "-------------------------"
 if command -v iptables >/dev/null 2>&1; then
     echo "✅ iptables available"
-    echo "Active rules count: $(iptables -L | wc -l)"
+    # Use -n flag to avoid DNS lookups that can hang
+    echo "Active rules count: $(timeout 10 iptables -L -n | wc -l)"
     echo "Default policies:"
-    iptables -L | grep -E "Chain.*policy"
+    timeout 10 iptables -L -n | grep -E "Chain.*policy"
 else
     echo "❌ iptables not available"
 fi
