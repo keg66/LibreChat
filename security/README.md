@@ -193,6 +193,8 @@ First, enable external APIs in `security-config.json`:
 }
 ```
 
+**Note**: Configuration parsing uses `jq` for robust JSON handling. See `security-config.json.examples` for complete configuration examples.
+
 #### Step 2: Required Fields
 Each service entry must include:
 - **`name`**: Descriptive name for the service (used in logs and tests)

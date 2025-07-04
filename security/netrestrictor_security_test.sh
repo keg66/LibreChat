@@ -57,36 +57,16 @@ echo "--------------------------------------------------------------------"
 
 # Read external API configuration and test each configured service
 if [ -f "/app/security/security-config.json" ]; then
-    # Check if external APIs are enabled
-    external_apis_enabled=$(grep -A 5 '"external_apis"' "/app/security/security-config.json" | grep '"enabled"' | grep -o 'true\|false')
+    # Check if external APIs are enabled using jq
+    external_apis_enabled=$(jq -r '.allowed_connections.external_apis.enabled // false' "/app/security/security-config.json" 2>/dev/null)
     
     if [ "$external_apis_enabled" = "true" ]; then
         # Create temporary file to store external API services
         temp_apis="/tmp/external_apis_list"
         > "$temp_apis"
         
-        # Parse external APIs from config and save to temp file
-        grep -A 100 '"external_apis"' "/app/security/security-config.json" | grep -A 50 '"services"' | \
-        sed -n '/{/,/}/p' | grep -E '"name"|"host"|"port"' | \
-        while read -r line; do
-            if echo "$line" | grep -q '"name"'; then
-                name=$(echo "$line" | sed 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-            elif echo "$line" | grep -q '"host"'; then
-                host=$(echo "$line" | sed 's/.*"host"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-            elif echo "$line" | grep -q '"port"'; then
-                port=$(echo "$line" | sed 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/')
-                
-                # Save complete service info to temp file
-                if [ -n "$name" ] && [ -n "$host" ] && [ -n "$port" ]; then
-                    echo "$name|$host|$port" >> "$temp_apis"
-                    
-                    # Reset variables
-                    name=""
-                    host=""
-                    port=""
-                fi
-            fi
-        done
+        # Parse external APIs using jq and save to temp file
+        jq -r '.allowed_connections.external_apis.services[]? | "\(.name)|\(.host)|\(.port)"' "/app/security/security-config.json" 2>/dev/null > "$temp_apis"
         
         # Now test each service from the temp file
         if [ -f "$temp_apis" ] && [ -s "$temp_apis" ]; then

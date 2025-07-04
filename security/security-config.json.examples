@@ -1,0 +1,79 @@
+{
+  "external_apis_examples": {
+    "enabled": true,
+    "description": "Example configurations for external APIs",
+    "services": [
+      {
+        "name": "OpenAI API",
+        "host": "api.openai.com",
+        "port": 443
+      },
+      {
+        "name": "Anthropic API",
+        "host": "api.anthropic.com",
+        "port": 443
+      },
+      {
+        "name": "Google OAuth",
+        "host": "accounts.google.com",
+        "port": 443
+      },
+      {
+        "name": "Google APIs",
+        "host": "www.googleapis.com",
+        "port": 443
+      },
+      {
+        "name": "GitHub OAuth",
+        "host": "github.com",
+        "port": 443
+      },
+      {
+        "name": "GitHub API",
+        "host": "api.github.com",
+        "port": 443
+      },
+      {
+        "name": "Discord OAuth",
+        "host": "discord.com",
+        "port": 443
+      },
+      {
+        "name": "Test Service (should work)",
+        "host": "host.docker.internal",
+        "port": 8081
+      }
+    ]
+  },
+  "external_dns_examples": {
+    "enabled": true,
+    "description": "Example configurations for external DNS servers",
+    "servers": [
+      {
+        "name": "Google Primary DNS",
+        "ip": "8.8.8.8",
+        "port": 53,
+        "protocol": "udp"
+      },
+      {
+        "name": "Google Secondary DNS",
+        "ip": "8.8.4.4",
+        "port": 53,
+        "protocol": "udp"
+      },
+      {
+        "name": "Cloudflare Primary DNS",
+        "ip": "1.1.1.1",
+        "port": 53,
+        "protocol": "udp"
+      },
+      {
+        "name": "Cloudflare Secondary DNS",
+        "ip": "1.0.0.1",
+        "port": 53,
+        "protocol": "udp"
+      }
+    ],
+    "primary_server": "8.8.8.8"
+  }
+}

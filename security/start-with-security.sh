@@ -7,23 +7,26 @@ echo "Container: $HOSTNAME"
 # Configuration file path
 CONFIG_FILE="/app/security/security-config.json"
 
-# Function to read JSON config
+# Function to read JSON config using jq
 read_config() {
     local key="$1"
     if [ -f "$CONFIG_FILE" ]; then
-        # Use basic shell tools to parse JSON (works without jq)
-        grep -o "\"$key\"[[:space:]]*:[[:space:]]*[^,}]*" "$CONFIG_FILE" | cut -d':' -f2 | tr -d ' ",'
+        jq -r ".$key // empty" "$CONFIG_FILE" 2>/dev/null
     else
         echo "Warning: Config file $CONFIG_FILE not found"
         return 1
     fi
 }
 
-# Function to check if a service category is enabled
+# Function to check if a service category is enabled using jq
 is_enabled() {
     local category="$1"
-    local enabled=$(grep -A 5 "\"$category\"" "$CONFIG_FILE" | head -5 | grep -o '"enabled"[[:space:]]*:[[:space:]]*[^,}]*' | cut -d':' -f2 | tr -d ' ",' | head -1)
-    [ "$enabled" = "true" ]
+    if [ -f "$CONFIG_FILE" ]; then
+        local enabled=$(jq -r ".allowed_connections.\"$category\".enabled // false" "$CONFIG_FILE" 2>/dev/null)
+        [ "$enabled" = "true" ]
+    else
+        return 1
+    fi
 }
 
 # We run as root, so we can apply iptables rules directly
@@ -61,35 +64,16 @@ if [ "$EUID" -eq 0 ]; then
     
     # Allow external DNS (if enabled in config)
     if is_enabled "external_dns" || [ ! -f "$CONFIG_FILE" ]; then
-        if [ -f "$CONFIG_FILE" ]; then
+        if [ -f "$CONFIG_FILE" ] && is_enabled "external_dns"; then
             echo "✅ External DNS (Configured servers):"
             
-            # Parse DNS servers from the config file
-            grep -A 50 '"external_dns"' "$CONFIG_FILE" | grep -A 30 '"servers"' | \
-            sed -n '/{/,/}/p' | grep -E '"name"|"ip"|"port"|"protocol"' | \
-            while read -r line; do
-                if echo "$line" | grep -q '"name"'; then
-                    dns_name=$(echo "$line" | sed 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-                elif echo "$line" | grep -q '"ip"'; then
-                    dns_ip=$(echo "$line" | sed 's/.*"ip"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-                elif echo "$line" | grep -q '"port"'; then
-                    dns_port=$(echo "$line" | sed 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/')
-                elif echo "$line" | grep -q '"protocol"'; then
-                    dns_protocol=$(echo "$line" | sed 's/.*"protocol"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+            # Parse DNS servers using jq
+            jq -r '.allowed_connections.external_dns.servers[]? | "\(.name)|\(.ip)|\(.port)|\(.protocol)"' "$CONFIG_FILE" 2>/dev/null | while IFS='|' read -r dns_name dns_ip dns_port dns_protocol; do
+                if [ -n "$dns_name" ] && [ -n "$dns_ip" ] && [ -n "$dns_port" ] && [ -n "$dns_protocol" ]; then
+                    echo "  ✅ $dns_name ($dns_ip:$dns_port/$dns_protocol)"
                     
-                    # When we have all four values, process the DNS server
-                    if [ -n "$dns_name" ] && [ -n "$dns_ip" ] && [ -n "$dns_port" ] && [ -n "$dns_protocol" ]; then
-                        echo "  ✅ $dns_name ($dns_ip:$dns_port/$dns_protocol)"
-                        
-                        # Add iptables rule for this DNS server
-                        iptables -A OUTPUT -d "$dns_ip" -p "$dns_protocol" --dport "$dns_port" -j ACCEPT 2>/dev/null || echo "Warning: Could not add DNS rule for $dns_ip"
-                        
-                        # Reset variables
-                        dns_name=""
-                        dns_ip=""
-                        dns_port=""
-                        dns_protocol=""
-                    fi
+                    # Add iptables rule for this DNS server
+                    iptables -A OUTPUT -d "$dns_ip" -p "$dns_protocol" --dport "$dns_port" -j ACCEPT 2>/dev/null || echo "Warning: Could not add DNS rule for $dns_ip"
                 fi
             done
         else
@@ -117,69 +101,48 @@ if [ "$EUID" -eq 0 ]; then
     
     # Allow external APIs (if enabled in config)
     if is_enabled "external_apis" || [ ! -f "$CONFIG_FILE" ]; then
-        if [ -f "$CONFIG_FILE" ]; then
+        if [ -f "$CONFIG_FILE" ] && is_enabled "external_apis"; then
             echo "✅ External APIs (Host-specific mode):"
             
-            # Parse each service from the config file
-            grep -A 100 '"external_apis"' "$CONFIG_FILE" | grep -A 50 '"services"' | \
-            sed -n '/{/,/}/p' | grep -E '"name"|"host"|"port"' | \
-            while read -r line; do
-                if echo "$line" | grep -q '"name"'; then
-                    name=$(echo "$line" | sed 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-                elif echo "$line" | grep -q '"host"'; then
-                    host=$(echo "$line" | sed 's/.*"host"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-                elif echo "$line" | grep -q '"port"'; then
-                    port=$(echo "$line" | sed 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/')
+            # Get primary DNS server from config using jq
+            primary_dns=$(jq -r '.allowed_connections.external_dns.primary_server // "8.8.8.8"' "$CONFIG_FILE" 2>/dev/null)
+            
+            # Parse each service using jq
+            jq -r '.allowed_connections.external_apis.services[]? | "\(.name)|\(.host)|\(.port)"' "$CONFIG_FILE" 2>/dev/null | while IFS='|' read -r name host port; do
+                if [ -n "$name" ] && [ -n "$host" ] && [ -n "$port" ]; then
+                    echo "  ✅ $name ($host:$port)"
                     
-                    # When we have all three values, process the service
-                    if [ -n "$name" ] && [ -n "$host" ] && [ -n "$port" ]; then
-                        echo "  ✅ $name ($host:$port)"
-                        
-                        # Try to resolve hostname and add iptables rules
-                        host_ips=""
-                        
-                        # Get primary DNS server from config
-                        primary_dns=$(grep -A 20 '"external_dns"' "$CONFIG_FILE" | grep '"primary_server"' | sed 's/.*"primary_server"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' | head -1)
-                        if [ -z "$primary_dns" ]; then
-                            primary_dns="8.8.8.8"  # fallback
-                        fi
-                        
-                        # Try dig with configured external DNS first (most reliable)
-                        if host_ips=$(dig +short "$host" @"$primary_dns" 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'); then
-                            echo "    → Resolved via dig (using $primary_dns) to: $host_ips"
-                        # Try nslookup with configured external DNS as fallback
-                        elif host_ips=$(nslookup "$host" "$primary_dns" 2>/dev/null | grep "Address:" | grep -v "#53" | awk '{print $2}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'); then
-                            echo "    → Resolved via nslookup (using $primary_dns) to: $host_ips"
-                        # Try getent as last resort
-                        elif host_ips=$(getent hosts "$host" 2>/dev/null | awk '{print $1}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'); then
-                            echo "    → Resolved via getent to: $host_ips"
-                        else
-                            echo "    → Could not resolve hostname"
-                        fi
-                        
-                        # Add iptables rules for resolved IPs
-                        if [ -n "$host_ips" ]; then
-                            for host_ip in $host_ips; do
-                                # Validate IP format
-                                if echo "$host_ip" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
-                                    iptables -A OUTPUT -d "$host_ip" -p tcp --dport "$port" -j ACCEPT 2>/dev/null
-                                fi
-                            done
-                        fi
-                        
-                        # Store for testing purposes
-                        echo "$name:$host:$port" >> /tmp/external_apis_config 2>/dev/null || true
-                        
-                        # Reset variables
-                        name=""
-                        host=""
-                        port=""
+                    # Try to resolve hostname and add iptables rules
+                    host_ips=""
+                    
+                    # Try dig with configured external DNS first (most reliable)
+                    if host_ips=$(dig +short "$host" @"$primary_dns" 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'); then
+                        echo "    → Resolved via dig (using $primary_dns) to: $host_ips"
+                    # Try nslookup with configured external DNS as fallback
+                    elif host_ips=$(nslookup "$host" "$primary_dns" 2>/dev/null | grep "Address:" | grep -v "#53" | awk '{print $2}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'); then
+                        echo "    → Resolved via nslookup (using $primary_dns) to: $host_ips"
+                    # Try getent as last resort
+                    elif host_ips=$(getent hosts "$host" 2>/dev/null | awk '{print $1}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'); then
+                        echo "    → Resolved via getent to: $host_ips"
+                    else
+                        echo "    → Could not resolve hostname"
                     fi
+                    
+                    # Add iptables rules for resolved IPs
+                    if [ -n "$host_ips" ]; then
+                        for host_ip in $host_ips; do
+                            # Validate IP format
+                            if echo "$host_ip" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+                                iptables -A OUTPUT -d "$host_ip" -p tcp --dport "$port" -j ACCEPT 2>/dev/null
+                            fi
+                        done
+                    fi
+                    
+                    # Store for testing purposes
+                    echo "$name:$host:$port" >> /tmp/external_apis_config 2>/dev/null || true
                 fi
             done
             
-            # Count applied rules
-            external_rule_count=$(iptables -L OUTPUT -n | grep -c "ACCEPT.*tcp dpt:[0-9]")
             echo "  📊 Applied host-specific rules for external APIs"
         else
             # Fallback: block all external access if no config
