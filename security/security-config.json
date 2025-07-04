@@ -1,12 +1,6 @@
 {
   "netrestrictor": {
-    "description": "LibreChat NetRestrictor Security Configuration",
-    "version": "1.0",
-    "default_policy": {
-      "input": "ACCEPT",
-      "output": "DROP",
-      "forward": "DROP"
-    }
+    "description": "LibreChat NetRestrictor Security Configuration"
   },
   "allowed_connections": {
     "loopback": {
@@ -77,16 +71,5 @@
       "servers": [],
       "primary_server": "8.8.8.8"
     }
-  },
-  "logging": {
-    "enabled": true,
-    "level": "INFO",
-    "log_blocked": true,
-    "log_allowed": false
-  },
-  "rules": {
-    "allow_loopback": true,
-    "drop_invalid": true,
-    "log_dropped": true
   }
 }
