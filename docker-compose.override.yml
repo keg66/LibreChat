@@ -1,0 +1,10 @@
+# LibreChat Docker Compose Override for OpenAI Chat Proxy
+services:
+  api:
+    volumes:
+      - type: bind
+        source: ./librechat.yaml
+        target: /app/librechat.yaml
+        read_only: true
+    environment:
+      - LOGS_ENABLED=false

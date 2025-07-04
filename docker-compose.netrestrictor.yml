@@ -1,0 +1,190 @@
+# LibreChat with Full NetRestrictor Implementation
+# Complete network isolation with Ubuntu base
+
+services:
+  # NetRestrictor-secured LibreChat - Full implementation
+  librechat-netrestrictor:
+    container_name: LibreChat-NetRestrictor
+    build:
+      context: .
+      dockerfile: Dockerfile.netrestrictor-ubuntu
+    ports:
+      # ONLY expose frontend port 3080 - all other access blocked
+      - "3080:3080"
+    privileged: true  # Required for iptables manipulation (NetRestrictor requirement)
+    cap_add:
+      - NET_ADMIN      # Network administration
+      - NET_RAW        # Raw socket access
+      - SYS_ADMIN      # System administration
+    cap_drop:
+      - ALL            # Drop all other capabilities for security
+    depends_on:
+      mongodb-netrestrictor:
+        condition: service_healthy
+      meilisearch-netrestrictor:
+        condition: service_healthy
+      vectordb-netrestrictor:
+        condition: service_healthy
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    dns:
+      - 127.0.0.11  # Only use Docker's internal DNS
+    dns_search: []  # Disable DNS search domains
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      # Application configuration
+      - HOST=0.0.0.0
+      - PORT=3080
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://LibreChat-MongoDB-NetRestrictor:27017/LibreChat
+      - MEILI_HOST=http://LibreChat-Meilisearch-NetRestrictor:7700
+      - RAG_PORT=${RAG_PORT:-8000}
+      - RAG_API_URL=http://LibreChat-RAG-API-NetRestrictor:${RAG_PORT:-8000}
+      
+      # Security configuration
+      - SECURITY_ENABLED=true
+      - NETRESTRICTOR_MODE=true
+      
+      # Timezone
+      - TZ=Asia/Tokyo
+    volumes:
+      - type: bind
+        source: ./.env
+        target: /app/.env
+      - type: bind
+        source: ./librechat.yaml
+        target: /app/librechat.yaml
+      - ./images:/app/client/public/images
+      - ./uploads:/app/uploads
+      - ./security:/app/security  # Security scripts
+    networks:
+      - netrestrictor_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # MongoDB - Internal network only
+  mongodb-netrestrictor:
+    container_name: LibreChat-MongoDB-NetRestrictor
+    image: mongo:7.0
+    restart: unless-stopped
+    volumes:
+      - ./data-mongo-netrestrictor:/data/db
+    command: mongod --noauth --bind_ip_all
+    networks:
+      - netrestrictor_network
+    # NO external port mapping for security
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Meilisearch - Internal network only
+  meilisearch-netrestrictor:
+    container_name: LibreChat-Meilisearch-NetRestrictor
+    image: getmeili/meilisearch:v1.12.3
+    restart: unless-stopped
+    environment:
+      - MEILI_HOST=http://meilisearch-netrestrictor:7700
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+    volumes:
+      - ./meili_data_netrestrictor:/meili_data
+    networks:
+      - netrestrictor_network
+    # NO external port mapping for security
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Vector Database - Internal network only
+  vectordb-netrestrictor:
+    container_name: LibreChat-VectorDB-NetRestrictor
+    image: ankane/pgvector:v0.5.1
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mydatabase
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+    volumes:
+      - ./vectordb_netrestrictor:/var/lib/postgresql/data
+    networks:
+      - netrestrictor_network
+    # NO external port mapping for security
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydatabase"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # RAG API - Internal network only
+  rag-api-netrestrictor:
+    container_name: LibreChat-RAG-API-NetRestrictor
+    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
+    restart: unless-stopped
+    environment:
+      - RAG_PORT=${RAG_PORT:-8000}
+      - POSTGRES_DB=mydatabase
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_HOST=vectordb-netrestrictor
+      - POSTGRES_PORT=5432
+    depends_on:
+      - vectordb-netrestrictor
+    volumes:
+      - type: bind
+        source: ./uploads
+        target: /app/uploads
+    networks:
+      - netrestrictor_network
+    # NO external port mapping for security
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# NetRestrictor isolated network
+networks:
+  netrestrictor_network:
+    driver: bridge
+    name: librechat_netrestrictor_network
+    internal: false  # Allow controlled host communication through iptables
+    ipam:
+      config:
+        - subnet: 172.26.0.0/16
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "true"
+      com.docker.network.bridge.enable_ip_masquerade: "true"
+      com.docker.network.bridge.host_binding_ipv4: "0.0.0.0"

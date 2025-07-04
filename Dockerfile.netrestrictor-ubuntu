@@ -1,0 +1,16 @@
+# NetRestrictor Security Implementation for LibreChat
+FROM ghcr.io/danny-avila/librechat-dev:latest
+
+# Switch to root for security tools installation
+USER root
+
+# Install security tools (Alpine packages)
+RUN apk add --no-cache iptables iproute2 curl bash su-exec
+
+# Create startup script
+COPY security/start-with-security.sh /app/start-with-security.sh
+RUN chmod +x /app/start-with-security.sh
+
+# Stay as root for iptables access
+# Use the security-enabled startup script
+ENTRYPOINT ["/app/start-with-security.sh"]

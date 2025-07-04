@@ -1,17 +1,53 @@
-**/.circleci
-**/.editorconfig
-**/.dockerignore
-**/.git
-**/.DS_Store
-**/.vscode
-**/node_modules
-
-# Specific patterns to ignore
-data-node
+# Exclude data directories and sensitive files  
+data-mongo*
 meili_data*
-librechat*
-Dockerfile*
-docs
+vectordb*/
+vectordb_netrestrictor*
+vectordb_netrestrictor/
+./vectordb_netrestrictor/
+**/vectordb_netrestrictor/**
+data-node/
+uploads/
+logs/
+logs_secure/
+.logs/
+*.log
 
-# Ignore all hidden files
-.*
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Development files
+.env.development
+.env.local
+.env.test
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+.cache/
+
+# Test files
+coverage/
+.nyc_output
+
+# Screenshots and demo files
+*.png
+*.jpg
+*.jpeg
+
+# NetRestrictor backup directories
+vectordb_netrestrictor.backup

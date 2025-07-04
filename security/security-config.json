@@ -1,0 +1,97 @@
+{
+  "netrestrictor": {
+    "description": "LibreChat NetRestrictor Security Configuration",
+    "version": "1.0",
+    "default_policy": {
+      "input": "ACCEPT",
+      "output": "DROP",
+      "forward": "DROP"
+    }
+  },
+  "allowed_connections": {
+    "loopback": {
+      "enabled": true,
+      "description": "Allow loopback traffic for internal processes"
+    },
+    "established": {
+      "enabled": true,
+      "description": "Allow established and related connections"
+    },
+    "dns": {
+      "enabled": true,
+      "ports": [53],
+      "protocols": ["udp"],
+      "description": "Allow DNS resolution (Docker internal DNS)"
+    },
+    "internal_services": {
+      "enabled": true,
+      "description": "Allow connections to internal LibreChat services",
+      "services": [
+        {
+          "name": "MongoDB",
+          "port": 27017,
+          "protocol": "tcp"
+        },
+        {
+          "name": "Meilisearch",
+          "port": 7700,
+          "protocol": "tcp"
+        },
+        {
+          "name": "RAG API",
+          "port": 8000,
+          "protocol": "tcp"
+        },
+        {
+          "name": "PostgreSQL/VectorDB",
+          "port": 5432,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    "host_services": {
+      "enabled": true,
+      "description": "Allow connections to host services",
+      "target": "host.docker.internal",
+      "services": [
+        {
+          "name": "LibreChat Frontend",
+          "port": 3080,
+          "protocol": "tcp"
+        },
+        {
+          "name": "OpenAI Chat Proxy",
+          "port": 8081,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    "external_apis": {
+      "enabled": true,
+      "description": "Allow HTTP/HTTPS for AI APIs and OAuth",
+      "services": [
+        {
+          "name": "HTTP",
+          "port": 80,
+          "protocol": "tcp"
+        },
+        {
+          "name": "HTTPS",
+          "port": 443,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  },
+  "logging": {
+    "enabled": true,
+    "level": "INFO",
+    "log_blocked": true,
+    "log_allowed": false
+  },
+  "rules": {
+    "allow_loopback": true,
+    "drop_invalid": true,
+    "log_dropped": true
+  }
+}
