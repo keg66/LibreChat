@@ -67,79 +67,81 @@
       ]
     },
     "external_apis": {
-      "enabled": true,
-      "description": "Allow specific external APIs and OAuth providers",
+      "enabled": false,
+      "description": "Allow specific external APIs and OAuth providers (disabled for local-only deployment)",
       "services": [
-        {
-          "name": "OpenAI API",
-          "host": "api.openai.com",
-          "port": 443
-        },
-        {
-          "name": "Anthropic API",
-          "host": "api.anthropic.com",
-          "port": 443
-        },
-        {
-          "name": "Google OAuth",
-          "host": "accounts.google.com",
-          "port": 443
-        },
-        {
-          "name": "Google APIs",
-          "host": "www.googleapis.com",
-          "port": 443
-        },
-        {
-          "name": "GitHub OAuth",
-          "host": "github.com",
-          "port": 443
-        },
-        {
-          "name": "GitHub API",
-          "host": "api.github.com",
-          "port": 443
-        },
-        {
-          "name": "Discord OAuth",
-          "host": "discord.com",
-          "port": 443
-        },
-        {
-          "name": "Test Service (should work)",
-          "host": "host.docker.internal",
-          "port": 8081
-        }
+        // Example configurations - uncomment and modify as needed
+        // {
+        //   "name": "OpenAI API",
+        //   "host": "api.openai.com",
+        //   "port": 443
+        // },
+        // {
+        //   "name": "Anthropic API",
+        //   "host": "api.anthropic.com",
+        //   "port": 443
+        // },
+        // {
+        //   "name": "Google OAuth",
+        //   "host": "accounts.google.com",
+        //   "port": 443
+        // },
+        // {
+        //   "name": "Google APIs",
+        //   "host": "www.googleapis.com",
+        //   "port": 443
+        // },
+        // {
+        //   "name": "GitHub OAuth",
+        //   "host": "github.com",
+        //   "port": 443
+        // },
+        // {
+        //   "name": "GitHub API",
+        //   "host": "api.github.com",
+        //   "port": 443
+        // },
+        // {
+        //   "name": "Discord OAuth",
+        //   "host": "discord.com",
+        //   "port": 443
+        // },
+        // {
+        //   "name": "Test Service (should work)",
+        //   "host": "host.docker.internal",
+        //   "port": 8081
+        // }
       ]
     },
     "external_dns": {
-      "enabled": true,
-      "description": "Allow external DNS resolution for hostname lookups",
+      "enabled": false,
+      "description": "Allow external DNS resolution for hostname lookups (disabled for local-only deployment)",
       "servers": [
-        {
-          "name": "Google Primary DNS",
-          "ip": "8.8.8.8",
-          "port": 53,
-          "protocol": "udp"
-        },
-        {
-          "name": "Google Secondary DNS",
-          "ip": "8.8.4.4",
-          "port": 53,
-          "protocol": "udp"
-        },
-        {
-          "name": "Cloudflare Primary DNS",
-          "ip": "1.1.1.1",
-          "port": 53,
-          "protocol": "udp"
-        },
-        {
-          "name": "Cloudflare Secondary DNS",
-          "ip": "1.0.0.1",
-          "port": 53,
-          "protocol": "udp"
-        }
+        // Example configurations - uncomment and modify as needed
+        // {
+        //   "name": "Google Primary DNS",
+        //   "ip": "8.8.8.8",
+        //   "port": 53,
+        //   "protocol": "udp"
+        // },
+        // {
+        //   "name": "Google Secondary DNS",
+        //   "ip": "8.8.4.4",
+        //   "port": 53,
+        //   "protocol": "udp"
+        // },
+        // {
+        //   "name": "Cloudflare Primary DNS",
+        //   "ip": "1.1.1.1",
+        //   "port": 53,
+        //   "protocol": "udp"
+        // },
+        // {
+        //   "name": "Cloudflare Secondary DNS",
+        //   "ip": "1.0.0.1",
+        //   "port": 53,
+        //   "protocol": "udp"
+        // }
       ],
       "primary_server": "8.8.8.8"
     }

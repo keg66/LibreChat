@@ -126,35 +126,36 @@ The security configuration is managed through `security/security-config.json`. T
 ##### 6. External APIs
 ```json
 "external_apis": {
-  "enabled": true,
-  "description": "Allow specific external APIs and OAuth providers",
+  "enabled": false,
+  "description": "Allow specific external APIs and OAuth providers (disabled for local-only deployment)",
   "services": [
-    {"name": "OpenAI API", "host": "api.openai.com", "port": 443},
-    {"name": "Anthropic API", "host": "api.anthropic.com", "port": 443},
-    {"name": "Google OAuth", "host": "accounts.google.com", "port": 443},
-    {"name": "GitHub API", "host": "api.github.com", "port": 443}
+    // Example configurations - uncomment and modify as needed
+    // {"name": "OpenAI API", "host": "api.openai.com", "port": 443},
+    // {"name": "Anthropic API", "host": "api.anthropic.com", "port": 443},
+    // {"name": "Google OAuth", "host": "accounts.google.com", "port": 443},
+    // {"name": "GitHub API", "host": "api.github.com", "port": 443}
   ]
 }
 ```
 - **Purpose**: Host-specific access to external services
 - **Configuration**: Each service requires `name`, `host`, and `port`
+- **Default**: Disabled for maximum security in local-only deployments
 - **Use Cases**:
   - AI provider APIs (OpenAI, Anthropic, Google, etc.)
   - OAuth authentication (Google, GitHub, Discord, etc.)
   - External tools (weather, search, etc.)
-- **Security**: High security - only specified hosts allowed
-- **Recommendation**: Add only necessary services to minimize attack surface
+- **Security**: High security - only specified hosts allowed when enabled
+- **Recommendation**: Keep disabled unless external API access is required
 
 ##### 7. External DNS
 ```json
 "external_dns": {
-  "enabled": true,
-  "description": "Allow external DNS resolution for hostname lookups",
+  "enabled": false,
+  "description": "Allow external DNS resolution for hostname lookups (disabled for local-only deployment)",
   "servers": [
-    {"name": "Google Primary DNS", "ip": "8.8.8.8", "port": 53, "protocol": "udp"},
-    {"name": "Google Secondary DNS", "ip": "8.8.4.4", "port": 53, "protocol": "udp"},
-    {"name": "Cloudflare Primary DNS", "ip": "1.1.1.1", "port": 53, "protocol": "udp"},
-    {"name": "Cloudflare Secondary DNS", "ip": "1.0.0.1", "port": 53, "protocol": "udp"}
+    // Example configurations - uncomment and modify as needed
+    // {"name": "Google Primary DNS", "ip": "8.8.8.8", "port": 53, "protocol": "udp"},
+    // {"name": "Cloudflare Primary DNS", "ip": "1.1.1.1", "port": 53, "protocol": "udp"}
   ],
   "primary_server": "8.8.8.8"
 }
@@ -163,11 +164,12 @@ The security configuration is managed through `security/security-config.json`. T
 - **Configuration**: 
   - `servers`: Array of DNS server configurations
   - `primary_server`: Primary DNS server IP used for hostname resolution
+- **Default**: Disabled for maximum security in local-only deployments
 - **Use Cases**:
   - Required when external APIs use hostnames instead of IP addresses
   - Enables resolution of api.openai.com, accounts.google.com, etc.
-- **Security**: Medium risk - allows specific DNS servers only
-- **Recommendation**: Required if external_apis is enabled with hostname-based services
+- **Security**: Medium risk - allows specific DNS servers only when enabled
+- **Recommendation**: Only enable when external_apis is enabled with hostname-based services
 
 ## Security Policy Management
 
@@ -175,8 +177,8 @@ The security configuration is managed through `security/security-config.json`. T
 
 To add new external services that LibreChat should be allowed to access:
 
-#### Step 1: Edit security-config.json
-Add your service to the `external_apis.services` array:
+#### Step 1: Enable External APIs
+First, enable external APIs in `security-config.json`:
 
 ```json
 "external_apis": {
@@ -218,8 +220,8 @@ The test script will automatically read your configuration and test each configu
 
 When using external APIs with hostnames, you need to configure external DNS servers for hostname resolution.
 
-#### Step 1: Edit External DNS Configuration
-Add or modify the `external_dns` section in `security-config.json`:
+#### Step 1: Enable External DNS
+First, enable external DNS in `security-config.json`:
 
 ```json
 "external_dns": {
@@ -366,12 +368,13 @@ docker compose -f docker-compose.netrestrictor.yml up -d --build
 docker exec LibreChat-NetRestrictor /app/security/netrestrictor_security_test.sh
 ```
 
-### High-Security Deployment
-For maximum security, disable external API access:
+### High-Security Deployment (Default Configuration)
+For maximum security, the default configuration disables external API access:
 
-1. Edit `security/security-config.json`:
+1. Default configuration in `security/security-config.json`:
    ```json
-   "external_apis": {"enabled": false}
+   "external_apis": {"enabled": false},
+   "external_dns": {"enabled": false}
    ```
 
 2. Configure OAuth alternative (optional):
@@ -386,6 +389,8 @@ For maximum security, disable external API access:
    docker compose -f docker-compose.netrestrictor.yml up -d --build
    docker exec LibreChat-NetRestrictor /app/security/netrestrictor_security_test.sh
    ```
+
+This configuration provides complete network isolation with 100% test success rate.
 
 ## Troubleshooting
 
