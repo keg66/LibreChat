@@ -97,13 +97,6 @@ if [ "$EUID" -eq 0 ]; then
                     iptables -A OUTPUT -p "$service_protocol" --dport "$service_port" -j ACCEPT 2>/dev/null || echo "Warning: Could not add $service_name rule"
                 fi
             done
-        else
-            # Fallback: use hardcoded defaults if no config file
-            iptables -A OUTPUT -p tcp --dport 27017 -j ACCEPT 2>/dev/null || echo "Warning: Could not add MongoDB rule"
-            iptables -A OUTPUT -p tcp --dport 7700 -j ACCEPT 2>/dev/null || echo "Warning: Could not add Meilisearch rule"
-            iptables -A OUTPUT -p tcp --dport 8000 -j ACCEPT 2>/dev/null || echo "Warning: Could not add RAG API rule"
-            iptables -A OUTPUT -p tcp --dport 5432 -j ACCEPT 2>/dev/null || echo "Warning: Could not add PostgreSQL rule"
-            echo "✅ Internal services (MongoDB:27017, Meilisearch:7700, RAG:8000, PostgreSQL:5432) allowed"
         fi
     fi
     
@@ -121,11 +114,6 @@ if [ "$EUID" -eq 0 ]; then
                     iptables -A OUTPUT -p "$service_protocol" --dport "$service_port" -j ACCEPT 2>/dev/null || echo "Warning: Could not add $service_name rule"
                 fi
             done
-        else
-            # Fallback: use hardcoded defaults if no config file
-            iptables -A OUTPUT -p tcp --dport 3080 -j ACCEPT 2>/dev/null || echo "Warning: Could not add LibreChat rule"
-            iptables -A OUTPUT -p tcp --dport 8081 -j ACCEPT 2>/dev/null || echo "Warning: Could not add proxy rule"
-            echo "✅ Host services (LibreChat:3080, Proxy:8081) allowed"
         fi
     fi
     
