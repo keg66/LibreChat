@@ -58,8 +58,31 @@ if [ "$EUID" -eq 0 ]; then
     
     # Allow DNS (if enabled in config)
     if is_enabled "dns" || [ ! -f "$CONFIG_FILE" ]; then
-        iptables -A OUTPUT -p udp --dport 53 -j ACCEPT 2>/dev/null || echo "Warning: Could not add DNS rule"
-        echo "✅ DNS (port 53/udp) allowed"
+        if [ -f "$CONFIG_FILE" ] && is_enabled "dns"; then
+            echo "✅ DNS (Config-based):"
+            
+            # Get ports and protocols from config
+            dns_ports=$(jq -r '.allowed_connections.dns.ports[]? // empty' "$CONFIG_FILE" 2>/dev/null)
+            dns_protocols=$(jq -r '.allowed_connections.dns.protocols[]? // empty' "$CONFIG_FILE" 2>/dev/null)
+            
+            # If no ports or protocols configured, use defaults
+            if [ -z "$dns_ports" ]; then
+                dns_ports="53"
+            fi
+            if [ -z "$dns_protocols" ]; then
+                dns_protocols="udp"
+            fi
+            
+            # Apply rules for each port/protocol combination
+            for port in $dns_ports; do
+                for protocol in $dns_protocols; do
+                    if [ -n "$port" ] && [ -n "$protocol" ]; then
+                        echo "  ✅ DNS ($port/$protocol)"
+                        iptables -A OUTPUT -p "$protocol" --dport "$port" -j ACCEPT 2>/dev/null || echo "Warning: Could not add DNS rule for $port/$protocol"
+                    fi
+                done
+            done
+        fi
     fi
     
     # Allow external DNS (if enabled in config)
