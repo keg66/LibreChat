@@ -22,7 +22,7 @@ read_config() {
 # Function to check if a service category is enabled
 is_enabled() {
     local category="$1"
-    local enabled=$(grep -A 10 "\"$category\"" "$CONFIG_FILE" | grep -o '"enabled"[[:space:]]*:[[:space:]]*[^,}]*' | cut -d':' -f2 | tr -d ' ",')
+    local enabled=$(grep -A 5 "\"$category\"" "$CONFIG_FILE" | head -5 | grep -o '"enabled"[[:space:]]*:[[:space:]]*[^,}]*' | cut -d':' -f2 | tr -d ' ",' | head -1)
     [ "$enabled" = "true" ]
 }
 
