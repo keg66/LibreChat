@@ -85,18 +85,48 @@ if [ "$EUID" -eq 0 ]; then
     
     # Allow internal service connections (if enabled in config)
     if is_enabled "internal_services" || [ ! -f "$CONFIG_FILE" ]; then
-        iptables -A OUTPUT -p tcp --dport 27017 -j ACCEPT 2>/dev/null || echo "Warning: Could not add MongoDB rule"
-        iptables -A OUTPUT -p tcp --dport 7700 -j ACCEPT 2>/dev/null || echo "Warning: Could not add Meilisearch rule"
-        iptables -A OUTPUT -p tcp --dport 8000 -j ACCEPT 2>/dev/null || echo "Warning: Could not add RAG API rule"
-        iptables -A OUTPUT -p tcp --dport 5432 -j ACCEPT 2>/dev/null || echo "Warning: Could not add PostgreSQL rule"
-        echo "✅ Internal services (MongoDB:27017, Meilisearch:7700, RAG:8000, PostgreSQL:5432) allowed"
+        if [ -f "$CONFIG_FILE" ] && is_enabled "internal_services"; then
+            echo "✅ Internal services (Config-based):"
+            
+            # Parse internal services using jq
+            jq -r '.allowed_connections.internal_services.services[]? | "\(.name)|\(.port)|\(.protocol)"' "$CONFIG_FILE" 2>/dev/null | while IFS='|' read -r service_name service_port service_protocol; do
+                if [ -n "$service_name" ] && [ -n "$service_port" ] && [ -n "$service_protocol" ]; then
+                    echo "  ✅ $service_name ($service_port/$service_protocol)"
+                    
+                    # Add iptables rule for this service
+                    iptables -A OUTPUT -p "$service_protocol" --dport "$service_port" -j ACCEPT 2>/dev/null || echo "Warning: Could not add $service_name rule"
+                fi
+            done
+        else
+            # Fallback: use hardcoded defaults if no config file
+            iptables -A OUTPUT -p tcp --dport 27017 -j ACCEPT 2>/dev/null || echo "Warning: Could not add MongoDB rule"
+            iptables -A OUTPUT -p tcp --dport 7700 -j ACCEPT 2>/dev/null || echo "Warning: Could not add Meilisearch rule"
+            iptables -A OUTPUT -p tcp --dport 8000 -j ACCEPT 2>/dev/null || echo "Warning: Could not add RAG API rule"
+            iptables -A OUTPUT -p tcp --dport 5432 -j ACCEPT 2>/dev/null || echo "Warning: Could not add PostgreSQL rule"
+            echo "✅ Internal services (MongoDB:27017, Meilisearch:7700, RAG:8000, PostgreSQL:5432) allowed"
+        fi
     fi
     
     # Allow connections to host.docker.internal (if enabled in config)
     if is_enabled "host_services" || [ ! -f "$CONFIG_FILE" ]; then
-        iptables -A OUTPUT -p tcp --dport 3080 -j ACCEPT 2>/dev/null || echo "Warning: Could not add LibreChat rule"
-        iptables -A OUTPUT -p tcp --dport 8081 -j ACCEPT 2>/dev/null || echo "Warning: Could not add proxy rule"
-        echo "✅ Host services (LibreChat:3080, Proxy:8081) allowed"
+        if [ -f "$CONFIG_FILE" ] && is_enabled "host_services"; then
+            echo "✅ Host services (Config-based):"
+            
+            # Parse host services using jq
+            jq -r '.allowed_connections.host_services.services[]? | "\(.name)|\(.port)|\(.protocol)"' "$CONFIG_FILE" 2>/dev/null | while IFS='|' read -r service_name service_port service_protocol; do
+                if [ -n "$service_name" ] && [ -n "$service_port" ] && [ -n "$service_protocol" ]; then
+                    echo "  ✅ $service_name ($service_port/$service_protocol)"
+                    
+                    # Add iptables rule for this service
+                    iptables -A OUTPUT -p "$service_protocol" --dport "$service_port" -j ACCEPT 2>/dev/null || echo "Warning: Could not add $service_name rule"
+                fi
+            done
+        else
+            # Fallback: use hardcoded defaults if no config file
+            iptables -A OUTPUT -p tcp --dport 3080 -j ACCEPT 2>/dev/null || echo "Warning: Could not add LibreChat rule"
+            iptables -A OUTPUT -p tcp --dport 8081 -j ACCEPT 2>/dev/null || echo "Warning: Could not add proxy rule"
+            echo "✅ Host services (LibreChat:3080, Proxy:8081) allowed"
+        fi
     fi
     
     # Allow external APIs (if enabled in config)
